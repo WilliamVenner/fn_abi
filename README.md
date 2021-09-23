@@ -12,13 +12,13 @@ extern crate fn_abi;
 
 #[abi("fastcall")]
 extern fn hello_world() {
-	println!("hello world!");
+    println!("hello world!");
 }
 
 #[cfg_attr(all(target_os = "windows", target_pointer_width = "32"), abi("thiscall"))]
 #[cfg_attr(all(target_os = "windows", target_pointer_width = "64"), abi("fastcall"))]
 extern fn hello_world() {
-	println!("hello world!");
+    println!("hello world!");
 }
 ```
 
@@ -28,13 +28,13 @@ extern fn hello_world() {
 
 ```rust
 #[abi(
-	linux32 = "C",
-	linux64 = "C",
-	win32 = "thiscall",
-	win64 = "fastcall"
+    linux32 = "C",
+    linux64 = "C",
+    win32 = "thiscall",
+    win64 = "fastcall"
 )]
 extern fn hello_world() {
-	println!("hello world!");
+    println!("hello world!");
 }
 ```
 
