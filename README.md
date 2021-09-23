@@ -1,3 +1,5 @@
+[![crates.io](https://img.shields.io/crates/v/fn_abi.svg)](https://crates.io/crates/fn_abi)
+
 # ✨ `fn_abi`
 
 A proc attribute macro that sets the ABI/calling convention for the attributed function.
