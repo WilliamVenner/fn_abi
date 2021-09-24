@@ -45,8 +45,8 @@ Currently, the macro will translate the following targets to their respective `c
 | Shorthand | Expansion |
 |:---:|:---:|
 | `linux`   | `cfg(target_os = "linux")` |
-| `win`     | `cfg(target_os = "linux")` |
-| `macos`   | `cfg(target_os = "windows")` |
+| `win`     | `cfg(target_os = "windows")` |
+| `macos`   | `cfg(target_os = "macos")` |
 | `linux32` | `cfg(all(target_os = "linux", target_pointer_width = "32"))` |
 | `linux64` | `cfg(all(target_os = "linux", target_pointer_width = "32"))` |
 | `win32`   | `cfg(all(target_os = "windows", target_pointer_width = "32"))` |
