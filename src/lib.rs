@@ -9,15 +9,13 @@ fn match_target<S: AsRef<str>>(triplet: S) -> bool {
 				return unimplemented!();
 			}
 
-			$(
-				#[cfg($cfg)] {
-					if triplet.as_ref() == $triplet {
-						return true;
-					}
-				}
-			)+
-
-			false
+			match triplet.as_ref() {
+				$(
+					#[cfg($cfg)]
+					$triplet => return true,
+				)+
+				_ => false
+			}
 		}}
 	}
 
