@@ -39,6 +39,110 @@ fn match_target<S: AsRef<str>>(triplet: S) -> bool {
 use proc_macro::{TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Abi, ItemFn, ItemForeignMod, ItemType, ItemStatic, LitStr, TypeBareFn};
+use syn_squash::syn_squash;
+
+enum MaybeMutable<'a, T> {
+	Mutable(&'a mut T),
+	Owned(T)
+}
+impl<T> core::ops::Deref for MaybeMutable<'_, T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		match self {
+			MaybeMutable::Mutable(borrowed) => *borrowed,
+			MaybeMutable::Owned(ref owned) => owned,
+		}
+	}
+}
+impl<T> core::ops::DerefMut for MaybeMutable<'_, T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		match self {
+			MaybeMutable::Mutable(borrowed) => *borrowed,
+			MaybeMutable::Owned(ref mut owned) => owned,
+		}
+	}
+}
+impl<'a, T> From<&'a mut T> for MaybeMutable<'a, T> {
+	fn from(borrowed: &'a mut T) -> Self {
+		MaybeMutable::Mutable(borrowed)
+	}
+}
+impl<T> From<T> for MaybeMutable<'_, T> {
+	fn from(owned: T) -> Self {
+		MaybeMutable::Owned(owned)
+	}
+}
+impl<T> AsMut<T> for MaybeMutable<'_, T> {
+	fn as_mut(&mut self) -> &mut T {
+		match self {
+			MaybeMutable::Mutable(borrowed) => borrowed,
+			MaybeMutable::Owned(_) => panic!("Tried to call as_mut() on a MaybeMutable::Owned"),
+		}
+	}
+}
+syn_squash! {
+	syn_squash_fn => {
+		default! => {
+			fn abi(&mut self) -> Option<MaybeMutable<'_, Abi>> {
+				unreachable!();
+			}
+
+			fn set_abi(&mut self, abi: Option<LitStr>) {
+				self.abi().unwrap().name = abi;
+			}
+		};
+
+		ItemFn => {
+			fn abi(&mut self) -> Option<MaybeMutable<'_, Abi>> {
+				self.sig.abi.as_mut().map(Into::into)
+			}
+		};
+
+		TypeBareFn => {
+			fn abi(&mut self) -> Option<MaybeMutable<'_, Abi>> {
+				self.abi.as_mut().map(Into::into)
+			}
+		};
+
+		ItemForeignMod => {
+			fn abi(&mut self) -> Option<MaybeMutable<'_, Abi>> {
+				Some((&mut self.abi).into())
+			}
+		};
+
+		ItemStatic => {
+			fn abi(&mut self) -> Option<MaybeMutable<'_, Abi>> {
+				let function = match &mut *self.ty {
+					syn::Type::BareFn(function) => function,
+					_ => panic!("Only bare function types are supported, please use the macro on a type alias instead"),
+				};
+				function.abi.as_mut().map(Into::into)
+			}
+
+			fn set_abi(&mut self, lit: Option<LitStr>) {
+				let function = match &mut *self.ty {
+					syn::Type::BareFn(function) => function,
+					_ => unreachable!()
+				};
+				function.abi.as_mut().unwrap().name = lit;
+			}
+		};
+
+		ItemType => {
+			fn abi(&mut self) -> Option<MaybeMutable<'_, Abi>> {
+				let alias = syn::parse::<TypeBareFn>(self.ty.to_token_stream().into()).expect("This type alias does not alias a supported type by fn_abi");
+				alias.abi.map(Into::into)
+			}
+
+			fn set_abi(&mut self, lit: Option<LitStr>) {
+				let mut alias = syn::parse::<TypeBareFn>(self.ty.to_token_stream().into()).unwrap();
+				alias.abi.as_mut().unwrap().name = lit;
+				self.ty = Box::new(syn::Type::BareFn(alias));
+			}
+		}
+	}
+}
 
 #[proc_macro_attribute]
 #[doc = include_str!("../README.md")]
@@ -65,7 +169,7 @@ pub fn abi(args: TokenStream, input: TokenStream) -> TokenStream {
 		};
 	}
 
-	let mut function = parse_any_mutable_abi(input).expect("fn_abi is not supported on this item");
+	let mut function = syn_squash_fn(input).expect("fn_abi is not supported on this item");
 	let function_abi = function.abi().expect("Missing `extern` keyword in function signature");
 
 	let mut args = args.into_iter().peekable();
@@ -110,136 +214,5 @@ pub fn abi(args: TokenStream, input: TokenStream) -> TokenStream {
 		function.into_tokens()
 	} else {
 		panic!("Missing ABI for this target, and no default was specified (e.g. `extern \"Rust\"`)");
-	}
-}
-
-enum MaybeMutableAbi<'a> {
-	Mutable(&'a mut Abi),
-	Owned(Abi)
-}
-impl core::ops::Deref for MaybeMutableAbi<'_> {
-	type Target = Abi;
-
-	fn deref(&self) -> &Self::Target {
-		match self {
-			MaybeMutableAbi::Mutable(borrowed) => *borrowed,
-			MaybeMutableAbi::Owned(ref owned) => owned,
-		}
-	}
-}
-impl core::ops::DerefMut for MaybeMutableAbi<'_> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		match self {
-			MaybeMutableAbi::Mutable(borrowed) => *borrowed,
-			MaybeMutableAbi::Owned(ref mut owned) => owned,
-		}
-	}
-}
-impl<'a> From<&'a mut Abi> for MaybeMutableAbi<'a> {
-	fn from(borrowed: &'a mut Abi) -> Self {
-		MaybeMutableAbi::Mutable(borrowed)
-	}
-}
-impl From<Abi> for MaybeMutableAbi<'_> {
-	fn from(owned: Abi) -> Self {
-		MaybeMutableAbi::Owned(owned)
-	}
-}
-impl Into<Abi> for MaybeMutableAbi<'_> {
-	fn into(self) -> Abi {
-		if let MaybeMutableAbi::Owned(owned) = self {
-			owned
-		} else {
-			panic!("MaybeMutableAbi::into(Abi) called on non-owned MaybeMutableAbi");
-		}
-	}
-}
-
-trait SynFnIntoTokens {
-	fn into_tokens(&self) -> TokenStream;
-}
-trait SynFn: SynFnIntoTokens {
-	fn parse(input: TokenStream) -> Option<Box<dyn SynFn>> where Self: 'static + Sized + syn::parse::Parse {
-		syn::parse::<Self>(input).ok().map(|function| Box::new(function) as _)
-	}
-
-	fn abi(&mut self) -> Option<MaybeMutableAbi<'_>> {
-		unreachable!();
-	}
-
-	fn set_abi(&mut self, abi: Option<LitStr>) {
-		self.abi().unwrap().name = abi;
-	}
-}
-macro_rules! impl_syn_fn {
-	{ $($ty:ty => $code:tt);* } => {
-		$(
-			impl SynFnIntoTokens for $ty {
-				fn into_tokens(&self) -> TokenStream {
-					let function: &$ty = self;
-					quote!(#function).into()
-				}
-			}
-			impl SynFn for $ty $code
-		)*
-
-		fn parse_any_mutable_abi(input: TokenStream) -> Option<Box<dyn SynFn>> {
-			$(
-				if let Some(function) = <$ty as SynFn>::parse(input.clone()) {
-					return Some(function);
-				}
-			)*
-			None
-		}
-	};
-}
-impl_syn_fn! {
-	ItemFn => {
-		fn abi(&mut self) -> Option<MaybeMutableAbi<'_>> {
-			self.sig.abi.as_mut().map(Into::into)
-		}
-	};
-
-	TypeBareFn => {
-		fn abi(&mut self) -> Option<MaybeMutableAbi<'_>> {
-			self.abi.as_mut().map(Into::into)
-		}
-	};
-
-	ItemForeignMod => {
-		fn abi(&mut self) -> Option<MaybeMutableAbi<'_>> {
-			Some((&mut self.abi).into())
-		}
-	};
-
-	ItemStatic => {
-		fn abi(&mut self) -> Option<MaybeMutableAbi<'_>> {
-			let function = match &mut *self.ty {
-				syn::Type::BareFn(function) => function,
-				_ => panic!("Only bare function types are supported, please use the macro on a type alias instead"),
-			};
-			function.abi.as_mut().map(Into::into)
-		}
-
-		fn set_abi(&mut self, lit: Option<LitStr>) {
-			let function = match &mut *self.ty {
-				syn::Type::BareFn(function) => function,
-				_ => unreachable!()
-			};
-			function.abi.as_mut().unwrap().name = lit;
-		}
-	};
-
-	ItemType => {
-		fn abi(&mut self) -> Option<MaybeMutableAbi<'_>> {
-			let alias = syn::parse::<TypeBareFn>(self.ty.to_token_stream().into()).expect("This type alias does not alias a supported type by fn_abi");
-			alias.abi.map(Into::into)
-		}
-
-		fn set_abi(&mut self, lit: Option<LitStr>) {
-			let mut alias = syn::parse::<TypeBareFn>(self.ty.to_token_stream().into()).unwrap();
-			alias.abi.as_mut().unwrap().name = lit;
-			self.ty = Box::new(syn::Type::BareFn(alias));
-		}
 	}
 }

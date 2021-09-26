@@ -1,6 +1,6 @@
 [package]
 name = "fn_abi"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2018"
 authors = ["William Venner <william@venner.io>"]
 license = "MIT"
@@ -16,3 +16,4 @@ proc-macro = true
 proc-macro2 = "1"
 syn = { version = "1", features = ["full"] }
 quote = "1"
+syn_squash = "0"

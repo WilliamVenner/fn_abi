@@ -4,11 +4,12 @@ version = 3
 
 [[package]]
 name = "fn_abi"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+ "syn_squash",
 ]
 
 [[package]]
@@ -39,6 +40,12 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "syn_squash"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "134b985708d02b2569ab2b9e27c8758ca4baaaf725341a572d59bc2d174b9bb5"
 
 [[package]]
 name = "unicode-xid"
