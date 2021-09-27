@@ -1,6 +1,6 @@
 [package]
 name = "fn_abi"
-version = "0.1.2"
+version = "2.0.0"
 edition = "2018"
 authors = ["William Venner <william@venner.io>"]
 license = "MIT"

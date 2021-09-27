@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+// https://github.com/rust-lang/rust/issues/42587
+/*
 #[inline]
 fn match_target<S: AsRef<str>>(triplet: S) -> bool {
 	macro_rules! translation_table {
@@ -35,6 +37,7 @@ fn match_target<S: AsRef<str>>(triplet: S) -> bool {
 		"32" => target_pointer_width = "32"
 	)
 }
+*/
 
 use proc_macro::{TokenStream, TokenTree};
 use quote::{quote, ToTokens};
@@ -170,8 +173,16 @@ pub fn abi(args: TokenStream, input: TokenStream) -> TokenStream {
 	}
 
 	let mut function = syn_squash_fn(input).expect("fn_abi is not supported on this item");
-	let function_abi = function.abi().expect("Missing `extern` keyword in function signature");
 
+	let mut args = args.into_iter();
+	let abi_token = must_match!(args.next().expect("Expected an ABI (invalid argument found)") => TokenTree::Literal);
+	let desired_abi = abi_token.to_string();
+	let desired_abi = &desired_abi[1..desired_abi.len()-1];
+	function.set_abi(Some(LitStr::new(desired_abi, abi_token.span().into())));
+	function.into_tokens().into()
+
+	/*
+	let function_abi = function.abi().expect("Missing `extern` keyword in function signature");
 	let mut args = args.into_iter().peekable();
 	match args.peek() {
 		None => panic!("Expected an ABI or target shortcut table (none found)"),
@@ -215,4 +226,5 @@ pub fn abi(args: TokenStream, input: TokenStream) -> TokenStream {
 	} else {
 		panic!("Missing ABI for this target, and no default was specified (e.g. `extern \"Rust\"`)");
 	}
+	*/
 }
