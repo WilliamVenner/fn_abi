@@ -7,17 +7,16 @@ A proc attribute macro that sets the ABI/calling convention for the attributed f
 ## Example
 
 ```rust
-#[macro_use]
-extern crate fn_abi;
+#[macro_use] extern crate fn_abi;
 
 #[abi("fastcall")]
-extern fn hello_world() {
+extern fn hello_world_fastcall() {
     println!("hello world!");
 }
 
 #[cfg_attr(all(target_os = "windows", target_pointer_width = "32"), abi("thiscall"))]
 #[cfg_attr(all(target_os = "windows", target_pointer_width = "64"), abi("fastcall"))]
-extern fn hello_world() {
+extern fn hello_world_windows() {
     println!("hello world!");
 }
 ```
